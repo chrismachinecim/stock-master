@@ -8,7 +8,6 @@ import sys
 import json
 
 # J'importe mes fichiers personnalisés pour le style, les pages et la base de données 🤩CimStudioDev🤩
-import styles
 from showsplash import show_splash
 from loginpage import LoginPage
 from menupage import MenuPage
@@ -19,7 +18,7 @@ from databasemanager import DatabaseManager
 from forgotpasswordpage import ForgotPasswordPage
 
 # Je définis ici mes constantes de couleurs et de polices pour uniformiser le design de mon application 🤩CimStudioDev🤩
-PRIMARY_COLOR = "#3b5998"      # Bleu Facebook 🤩CimStudioDev🤩
+PRIMARY_COLOR = "#3b5998"      #  🤩CimStudioDev🤩
 SECONDARY_COLOR = "#80E2D6"    # Bleu clair pour le fond 🤩CimStudioDev🤩
 BUTTON_BG = PRIMARY_COLOR
 BUTTON_FG = "white"

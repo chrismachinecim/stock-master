@@ -302,7 +302,7 @@ class VentesPage(tk.Frame):
     # --- Fonctions de scan ---
 
     def choisir_mode_scan(self):
-        choix = messagebox.askquestion("Scanner le produit", "Utiliser la caméra du PC ?\nOui = caméra, Non = scanner USB")
+        choix = messagebox.askquestion("Scanner le produit", "Utiliser la caméra du PC ?\nOui = Caméra  |  Non = Scanner USB")
         if choix == "yes":
             self.scan_camera()
         else:
