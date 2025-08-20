@@ -4,6 +4,8 @@ import sqlite3, datetime, re
 from tkcalendar import DateEntry
 import os
 import sys
+from fpdf import FPDF
+
 
 # --- Définition des couleurs et styles de base de l'application pour un visuel harmonieux 🤩CimStudioDev🤩
 PRIMARY_COLOR = "#3b5998"      # Bleu foncé principal utilisé dans l'interface 🤩CimStudioDev🤩
@@ -96,6 +98,39 @@ class AchatsPage(tk.Frame):
         self.nouveau_btn = tk.Button(btn_frame, text="Nouveau", width=12,
                                      bg=BUTTON_BG, fg=BUTTON_FG, command=self.clear_fields)
         self.nouveau_btn.grid(row=0, column=3, padx=10)
+
+        # Nouveau bouton pour ajouter la quantité à un produit existant 🤩CimStudioDev🤩
+        self.ajouter_qte_btn = tk.Button(
+            btn_frame,
+            text="Ajouter Produits",
+            width=15,
+            bg="#FFA500",  # Orange
+            fg="white",
+            command=self.ajouter_quantite_produit
+        )
+        self.ajouter_qte_btn.grid(row=0, column=5, padx=10)
+
+        # Nouveau bouton pour voir le total des achats 🤩CimStudioDev🤩
+        self.total_achats_btn = tk.Button(
+            btn_frame,
+            text="Total Achats",
+            width=12,
+            bg="#1E90FF",  # Bleu
+            fg="white",
+            command=self.afficher_totaux_achats
+        )
+        self.total_achats_btn.grid(row=0, column=6, padx=10)
+
+        # Bouton pour exporter le rapport PDF des achats 🤩CimStudioDev🤩
+        self.export_pdf_btn = tk.Button(
+            btn_frame,
+            text="Exporter PDF",
+            width=12,
+            bg="#228B22",  # Vert
+            fg="white",
+            command=self.export_all_achats
+        )
+        self.export_pdf_btn.grid(row=0, column=4, padx=10)
 
         # --- Tableau affichant les enregistrements d’achats existants --- 🤩CimStudioDev🤩
         self.tree = ttk.Treeview(self, columns=("Matricule", "Fournisseur", "Téléphone", "Produit", "Prix", "Quantité", "Restant", "Timestamp"),
@@ -245,6 +280,126 @@ class AchatsPage(tk.Frame):
         self.produit_entry.delete(0, tk.END)
         self.prix_entry.delete(0, tk.END)
         self.quantite_entry.delete(0, tk.END)
+
+    def ajouter_quantite_produit(self):
+        """Ajoute une quantité supplémentaire à un produit existant sans réinitialiser les restants 🤩CimStudioDev🤩"""
+        selected = self.tree.focus()
+        if not selected:
+            messagebox.showwarning("Erreur", "Veuillez sélectionner un produit dans la liste.")
+            return
+
+        values = self.tree.item(selected, "values")
+        matricule = values[0]
+        produit = values[3]
+
+        # Fenêtre popup pour demander la quantité à ajouter
+        popup = tk.Toplevel(self)
+        popup.title("Ajouter Produits")
+        popup.geometry("300x150")
+        popup.config(bg=SECONDARY_COLOR)
+
+        tk.Label(popup, text=f"Produit sélectionné : {produit}", font=LABEL_FONT, bg=SECONDARY_COLOR).pack(pady=5)
+        tk.Label(popup, text="Quantité à ajouter :", font=LABEL_FONT, bg=SECONDARY_COLOR).pack(pady=5)
+
+        qte_entry = tk.Entry(popup, width=10)
+        qte_entry.pack(pady=5)
+
+        def valider():
+            try:
+                ajout = int(qte_entry.get())
+                if ajout <= 0:
+                    raise ValueError
+                # Mise à jour : quantite += ajout ET remaining += ajout
+                c = self.controller.db.conn.cursor()
+                c.execute("""
+                    UPDATE achats
+                    SET quantite = quantite + ?, remaining = remaining + ?
+                    WHERE matricule = ?
+                """, (ajout, ajout, matricule))
+                self.controller.db.conn.commit()
+                messagebox.showinfo("Succès", f"{ajout} produits ajoutés à {produit}.")
+                popup.destroy()
+                self.load_achats()
+            except:
+                messagebox.showwarning("Erreur", "Quantité invalide.")
+
+        tk.Button(popup, text="Valider", command=valider, bg=BUTTON_BG, fg=BUTTON_FG).pack(pady=10)
+
+    def afficher_totaux_achats(self):
+        """Affiche le total des prix (calculé), des quantités et des restants 🤩CimStudioDev🤩"""
+        try:
+            c = self.controller.db.conn.cursor()
+            # On calcule le coût total des achats = somme(prix * quantite)
+            c.execute("SELECT SUM(prix * quantite), SUM(quantite), SUM(remaining) FROM achats")
+            total_prix, total_quantite, total_restants = c.fetchone()
+
+            # Si aucun achat n'est enregistré, éviter les valeurs None
+            total_prix = total_prix if total_prix else 0
+            total_quantite = total_quantite if total_quantite else 0
+            total_restants = total_restants if total_restants else 0
+
+            # Affichage clair et formaté
+            messagebox.showinfo(
+                "Total des Achats",
+                f"💰 Coût Total : {total_prix:.2f} FC\n"
+                f"📦 Quantité Totale : {total_quantite}\n"
+                f"🛒 Produits Restants : {total_restants}"
+            )
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Impossible d'afficher les totaux.\n{e}")
+
+    def export_all_achats(self):
+        """Exporte tous les achats dans un fichier PDF."""
+        try:
+            # Récupération des achats
+            achats = self.controller.db.get_all_achats()
+            if not achats:
+                messagebox.showinfo("Information", "Aucun achat trouvé à exporter.")
+                return
+
+            # Création du dossier de sortie si inexistant
+            output_dir = "C:/Stock Master/rapports achats/"
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            # Définition du nom du fichier PDF
+            filename = os.path.join(output_dir, "rapport_achats.pdf")
+
+            # Création du PDF
+            pdf = FPDF(orientation="L")
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 14)
+            pdf.cell(0, 10, "RAPPORT COMPLET DES ACHATS - STOCK MASTER", ln=True, align="C")
+            pdf.ln(5)
+
+            # En-têtes
+            headers = ["Matricule", "Fournisseur", "Téléphone", "Produit", "Prix", "Quantité", "Restant", "Timestamp"]
+            col_w = [30, 45, 35, 45, 25, 25, 25, 40]
+
+            pdf.set_font("Arial", "B", 10)
+            for w, h in zip(col_w, headers):
+                pdf.cell(w, 8, h, border=1, align="C")
+            pdf.ln()
+
+            # Remplir le tableau
+            pdf.set_font("Arial", "", 9)
+            for achat in achats:
+                pdf.cell(col_w[0], 7, str(achat["matricule"]), border=1)
+                pdf.cell(col_w[1], 7, str(achat["fournisseur"]), border=1)
+                pdf.cell(col_w[2], 7, str(achat["fournisseur_phone"]), border=1)
+                pdf.cell(col_w[3], 7, str(achat["produit"]), border=1)
+                pdf.cell(col_w[4], 7, str(achat["prix"]), border=1, align="R")
+                pdf.cell(col_w[5], 7, str(achat["quantite"]), border=1, align="R")
+                pdf.cell(col_w[6], 7, str(achat["remaining"]), border=1, align="R")
+                pdf.cell(col_w[7], 7, str(achat["timestamp"]), border=1)
+                pdf.ln()
+
+            # Sauvegarder le PDF
+            pdf.output(filename)
+            messagebox.showinfo("Succès", f"Rapport PDF généré avec succès :\n{filename}")
+
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Impossible de générer le PDF.\n{e}")
 
     def quitter_application(self):
         """Ferme proprement l'application après confirmation 🤩CimStudioDev🤩"""

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import datetime
 import os
+from fpdf import FPDF  # pip install fpdf2
 import sys
 import cv2
 from pyzbar.pyzbar import decode
@@ -23,6 +24,120 @@ def resource_path(relative_path):
     except Exception:
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
+from fpdf import FPDF
+import os
+
+def ensure_dir(path: str):
+    """Crée le dossier si inexistant."""
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+
+def sanitize_text(text: str) -> str:
+    """
+    Remplace les caractères non supportés par FPDF.
+    Exemple : tirets longs, guillemets spéciaux, etc.
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    # On remplace les caractères non ASCII par des équivalents simples
+    return (
+        text.replace("—", "-")
+            .replace("–", "-")
+            .replace("’", "'")
+            .replace("“", '"')
+            .replace("”", '"')
+    )
+
+def export_single_sale(vente: dict, output_dir="C:/Stock Master/produits vendus/") -> str:
+    """
+    Génère une facture PDF pour une seule vente.
+    Champs inclus : Client, Téléphone, Produit, Prix, Quantité, Timestamp.
+    """
+    ensure_dir(output_dir)
+    timestamp_safe = str(vente["timestamp"]).replace(":", "-").replace("/", "-")
+    filename = os.path.join(output_dir, f"facture_{vente['achat_matricule']}_{timestamp_safe}.pdf")
+
+    pdf = FPDF()
+    pdf.add_page()
+
+    # En-tête
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "STOCK MASTER", ln=True, align="C")
+    pdf.set_font("Arial", "", 12)
+    pdf.cell(0, 8, "FACTURE DE VENTE", ln=True, align="C")
+    pdf.ln(6)
+
+    # Coordonnées (placeholder)
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 6, "Adresse : -", ln=True)
+    pdf.cell(0, 6, "Téléphone : -", ln=True)
+    pdf.ln(4)
+
+    # Client
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "Informations client", ln=True)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 7, sanitize_text(f"Client : {vente['client']}"), ln=True)
+    pdf.cell(0, 7, sanitize_text(f"Téléphone : {vente['client_phone']}"), ln=True)
+    pdf.ln(3)
+
+    # Détails vente
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 8, "Détails de la vente", ln=True)
+    pdf.set_font("Arial", "", 11)
+    pdf.cell(0, 7, sanitize_text(f"Matricule : {vente['achat_matricule']}"), ln=True)
+    pdf.cell(0, 7, sanitize_text(f"Produit : {vente['produit']}"), ln=True)
+    pdf.cell(0, 7, f"Prix de vente : {vente['prix_vente']}", ln=True)
+    pdf.cell(0, 7, f"Quantité : {vente['quantite']}", ln=True)
+    pdf.cell(0, 7, sanitize_text(f"Date/Heure : {vente['timestamp']}"), ln=True)
+    pdf.ln(10)
+
+    # Message de remerciement
+    pdf.set_font("Arial", "I", 10)
+    pdf.cell(0, 6, "Merci d'avoir choisi STOCK MASTER.", ln=True, align="C")
+
+    pdf.output(filename)
+    return filename
+
+def export_all_sales(ventes, output_dir="C:/Stock Master/tout produit vendu/") -> str:
+    """
+    Génère un rapport PDF de TOUTES les ventes (Matricule, Client, Téléphone,
+    Produit, Prix vente, Quantité, Timestamp, Bénéfice).
+    """
+    ensure_dir(output_dir)
+    filename = os.path.join(output_dir, "rapport_ventes.pdf")
+
+    pdf = FPDF(orientation="L")
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "RAPPORT COMPLET DES VENTES - STOCK MASTER", ln=True, align="C")
+    pdf.ln(4)
+
+    headers = ["Matricule", "Client", "Téléphone", "Produit", "Prix vente", "Quantité", "Timestamp", "Bénéfice"]
+    col_w = [35, 40, 35, 45, 30, 25, 45, 30]  # largeurs adaptées
+
+    # En-tête du tableau
+    pdf.set_font("Arial", "B", 10)
+    for w, h in zip(col_w, headers):
+        pdf.cell(w, 8, h, border=1, align="C")
+    pdf.ln()
+
+    # Lignes du tableau
+    pdf.set_font("Arial", "", 9)
+    for v in ventes:
+        pdf.cell(col_w[0], 7, sanitize_text(str(v["achat_matricule"])), border=1)
+        pdf.cell(col_w[1], 7, sanitize_text(str(v["client"])), border=1)
+        pdf.cell(col_w[2], 7, sanitize_text(str(v["client_phone"])), border=1)
+        pdf.cell(col_w[3], 7, sanitize_text(str(v["produit"])), border=1)
+        pdf.cell(col_w[4], 7, str(v["prix_vente"]), border=1, align="R")
+        pdf.cell(col_w[5], 7, str(v["quantite"]), border=1, align="R")
+        pdf.cell(col_w[6], 7, sanitize_text(str(v["timestamp"])), border=1)
+        pdf.cell(col_w[7], 7, str(v["benefice"]), border=1, align="R")
+        pdf.ln()
+
+    pdf.output(filename)
+    return filename
+
 
 class VentesPage(tk.Frame):
     def __init__(self, parent, controller):
@@ -89,8 +204,18 @@ class VentesPage(tk.Frame):
         self.scanner_btn = tk.Button(btns, text="Scanner le produit", width=15, bg=BUTTON_BG, fg=BUTTON_FG, command=self.choisir_mode_scan)
         self.scanner_btn.grid(row=0, column=4, padx=10)
 
+        self.total_ventes_btn = tk.Button(
+            btns,
+            text="Total Ventes",
+            width=15,
+            bg="#FF9900",  # Orange pour le différencier
+            fg="white",
+            command=self.afficher_totaux_ventes
+        )
+        self.total_ventes_btn.grid(row=0, column=5, padx=10)
+
         # Tableau des ventes
-        self.tree = ttk.Treeview(self, columns=("Matricule", "Client", "Téléphone", "Produit", "Prix vente", "Quantité", "Timestamp", "Bénéfice"), show="headings", height=8)
+        self.tree = ttk.Treeview(self, columns=("Matricule", "Client", "Téléphone", "Produit", "Prix vente", "Quantité", "Date et heure", "Bénéfice"), show="headings", height=8)
         for col in self.tree["columns"]:
             self.tree.heading(col, text=col)
             self.tree.column(col, width=100, anchor="center")
@@ -106,6 +231,14 @@ class VentesPage(tk.Frame):
 
         benefices_btn = tk.Button(bas_frame, text="BÉNÉFICES", width=12, bg=PRIMARY_COLOR3, fg=BUTTON_FG, command=self.show_benefices)
         benefices_btn.grid(row=0, column=1, padx=10)
+
+        vente_pdf_btn = tk.Button(bas_frame, text="Vente PDF", width=12, bg="blue", fg="white",
+                                  command=self.export_selected_sale_pdf)
+        vente_pdf_btn.grid(row=0, column=2, padx=10)
+
+        export_all_btn = tk.Button(bas_frame, text="Exporter PDF", width=12, bg="green", fg="white",
+                                   command=self.export_all_sales_pdf)
+        export_all_btn.grid(row=0, column=3, padx=10)
 
         bottom_frame = tk.Frame(self, bg=SECONDARY_COLOR)
         bottom_frame.pack(side="bottom", fill="x", pady=20)
@@ -126,6 +259,82 @@ class VentesPage(tk.Frame):
         self.load_ventes()
 
     # --- Méthodes intégrées ---
+
+    def export_selected_sale_pdf(self):
+        """Génère une facture PDF pour la vente sélectionnée dans le tableau."""
+        selected = self.tree.focus()
+        if not selected:
+            messagebox.showwarning("Erreur", "Sélectionnez une vente pour générer la facture PDF.")
+            return
+
+        values = self.tree.item(selected, "values")
+        vente = {
+            "achat_matricule": values[0],
+            "client": values[1],
+            "client_phone": values[2],
+            "produit": values[3],
+            "prix_vente": values[4],
+            "quantite": values[5],
+            "timestamp": values[6],
+        }
+
+        try:
+            pdf_path = export_single_sale(vente, output_dir="C:/Stock Master/produits vendus/")
+            messagebox.showinfo("Succès", f"Facture créée :\n{pdf_path}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Échec de la génération PDF : {e}")
+
+    def afficher_totaux_ventes(self):
+        """
+        Calcule et affiche le total des ventes :
+        - Chiffre d'affaires
+        - Quantité totale vendue
+        - Bénéfice total (positif ou négatif)
+        """
+        try:
+            ventes = self.controller.db.get_all_ventes_with_benefice()
+
+            if not ventes:
+                messagebox.showinfo("Info", "Aucune vente enregistrée.")
+                return
+
+            total_prix = 0
+            total_quantite = 0
+            total_benefices = 0
+
+            for v in ventes:
+                prix_vente = float(v["prix_vente"])
+                quantite = int(v["quantite"])
+                benefice = float(v["benefice"])
+
+                total_prix += prix_vente * quantite
+                total_quantite += quantite
+                total_benefices += benefice
+
+            # Préparer l'affichage
+            if total_benefices >= 0:
+                benef_text = f"📈 Bénéfice total : +{total_benefices:.2f} FC"
+            else:
+                benef_text = f"📉 Perte totale : {total_benefices:.2f} FC"
+
+            messagebox.showinfo(
+                "Résumé des ventes",
+                f"💰 Chiffre d'affaires total : {total_prix:.2f} FC\n"
+                f"📦 Quantité totale vendue : {total_quantite}\n"
+                f"{benef_text}"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Impossible de calculer le total des ventes.\n{e}")
+
+    def export_all_sales_pdf(self):
+        """Génère un rapport PDF de toute la base de ventes."""
+        try:
+            ventes = self.controller.db.get_all_ventes_with_benefice()
+            pdf_path = export_all_sales(ventes, output_dir="C:/Stock Master/tout produit vendu/")
+            messagebox.showinfo("Succès", f"Rapport créé :\n{pdf_path}")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Échec de l’export PDF : {e}")
 
     def afficher_produits(self):
         produits_window = tk.Toplevel(self)

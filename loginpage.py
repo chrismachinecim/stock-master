@@ -121,6 +121,11 @@ class LoginPage(tk.Frame):
                                command=lambda: controller.show_frame("ForgotPasswordPage"))
         forgot_btn.pack(pady=10)
 
+        # Lien pour modifier le mot de passe (si l’utilisateur connaît l’ancien) 🤩CimStudioDev🤩
+        change_btn = tk.Button(self, text="Modifier le mot de passe", bg="#80E2D6", fg="blue", bd=0,
+                               command=lambda: controller.show_frame("ChangePasswordPage"))
+        change_btn.pack(pady=5)
+
         # Zone en bas avec bouton quitter et le copyright 🤩CimStudioDev🤩
         bottom_frame = tk.Frame(self, bg=SECONDARY_COLOR)
         bottom_frame.pack(side="bottom", fill="x", pady=20)

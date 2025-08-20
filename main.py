@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import sqlite3, datetime, re
 from tkcalendar import DateEntry
+from pdf_export import export_single_sale, export_all_sales
 import os
 import sys
 import json
@@ -16,6 +17,7 @@ from achatspage import AchatsPage
 from registrationpage import RegistrationPage
 from databasemanager import DatabaseManager
 from forgotpasswordpage import ForgotPasswordPage
+from changepasswordpage import ChangePasswordPage
 
 # Je définis ici mes constantes de couleurs et de polices pour uniformiser le design de mon application 🤩CimStudioDev🤩
 PRIMARY_COLOR = "#3b5998"      #  🤩CimStudioDev🤩
@@ -55,7 +57,7 @@ class App(tk.Tk):
         container.grid_columnconfigure(0, weight=1)
 
         self.frames = {}  # Un dictionnaire pour stocker les pages 🤩CimStudioDev🤩
-        for F in (LoginPage, RegistrationPage, MenuPage, AchatsPage, VentesPage, ForgotPasswordPage):
+        for F in (LoginPage, RegistrationPage, MenuPage, AchatsPage, VentesPage, ForgotPasswordPage, ChangePasswordPage):
             page_name = F.__name__
             frame = F(parent=container, controller=self)  # J'initialise chaque page 🤩CimStudioDev🤩
             frame.configure(bg=SECONDARY_COLOR)
